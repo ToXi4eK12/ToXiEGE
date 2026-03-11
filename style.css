@@ -245,6 +245,27 @@ button:disabled {
 
 /* АДАПТИВ ДЛЯ ТЕЛЕФОНОВ */
 @media (max-width: 480px) {
+    .auth-bar {
+        right: 60px; /* подберите значение под вашу вёрстку */
+    }
+
+    /* Делаем блок с именем и кнопкой компактнее */
+    .user-info-bar {
+        padding: 4px 5px;
+        gap: 8px;
+    }
+
+    /* Уменьшаем саму кнопку выхода */
+    .logout-btn {
+        padding: 4px 8px !important;
+        font-size: 0.7rem !important;
+    }
+
+    /* Убеждаемся, что кнопка профиля остаётся поверх */
+    .profile-btn {
+        z-index: 1002;
+    }
+
     body { padding: 0; }
     
     .app-container {
@@ -323,4 +344,146 @@ button:disabled {
     padding: 4px 12px;
     border-radius: 40px;
     margin-left: auto; /* прижимает счётчик к правому краю */
+}
+
+.streak-container {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.streak-box {
+    flex: 1;
+    background: #fff8f1;
+    border: 2px solid #ffedd5;
+    border-radius: 20px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.streak-icon {
+    width: 45px;
+    height: 45px;
+    background: #fed7aa;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.streak-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.streak-title {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.streak-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ea580c;
+    line-height: 1.1;
+}
+
+.overall-stats-card {
+    background: #f0fdf4;
+    border: 2px solid #bbf7d0;
+    border-radius: 20px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.stat-task-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 15px;
+}
+
+.stat-task-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background: #f1f5f9;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+/* Адаптив для профиля */
+@media (max-width: 480px) {
+    .streak-container {
+        gap: 10px;
+    }
+    .streak-box {
+        padding: 10px;
+    }
+    .streak-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.2rem;
+    }
+}
+.auth-bar {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1001; /* Поверх всего */
+}
+
+.google-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: 0.2s;
+}
+
+.google-btn:hover { background: #f9fafb; }
+
+.google-btn img { width: 18px; height: 18px; }
+
+.user-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    padding: 5px 12px;
+    border-radius: 30px;
+    border: 1px solid #e2e8f0;
+}
+
+.logout-btn {
+    background: #fee2e2 !important;
+    color: #ef4444 !important;
+    padding: 5px 12px !important;
+    font-size: 0.8rem !important;
+    box-shadow: none !important;
 }

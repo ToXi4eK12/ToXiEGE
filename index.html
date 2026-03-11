@@ -5,10 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ЕГЭ русский: задание 13 (НЕ/НИ)</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#22c55e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
-    <div class="app-container" id="app"></div>
+    <div id="auth-section" class="auth-bar">
+        <button id="loginBtn" class="google-btn" style="display: none;">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+            Войти через Google
+        </button>
+        <div id="userInfo" class="user-info-bar" style="display: none; width: 200px; right: 100px;">
+            <span id="userName"></span>
+            <button id="logoutBtn" class="logout-btn">Выйти</button>
+        </div>
+    </div>
 
-    <script src="script.js"></script>
+    <div class="app-container" id="app">
+        </div>
+
+    <script type="module" src="script.js"></script>
 </body>
 </html>

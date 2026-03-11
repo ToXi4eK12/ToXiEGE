@@ -1,3 +1,52 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCxqqRg841CXKNdfIHwdpNLvIcdFb9OcN0",
+    authDomain: "toxiege.firebaseapp.com",
+    projectId: "toxiege",
+    storageBucket: "toxiege.firebasestorage.app",
+    messagingSenderId: "91767048939",
+    appId: "1:91767048939:web:2d96e33715a6a7b7c1ccae",
+    measurementId: "G-Y7VBMQP933"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  // Глобальная переменная для хранения ID текущего пользователя
+let currentUserId = null;
+
+// --- ЛОГИКА АВТОРИЗАЦИИ ---
+const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const userInfo = document.getElementById('userInfo');
+const userName = document.getElementById('userName');
+
+// Слушатель изменения состояния (вошел/вышел)
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // Пользователь вошел
+        currentUserId = user.uid;
+        loginBtn.style.display = 'none';
+        userInfo.style.display = 'flex';
+        userName.textContent = user.displayName;
+    } else {
+        // Пользователь вышел
+        currentUserId = null;
+        loginBtn.style.display = 'block';
+        userInfo.style.display = 'none';
+    }
+});
+
+// Действия по кнопкам
+loginBtn.onclick = () => signInWithPopup(auth, provider).catch(error => console.error("Ошибка входа:", error));
+logoutBtn.onclick = () => signOut(auth);
+
 (async function() {
     let tasks = {};
     let currentTaskId = null;
@@ -7,62 +56,178 @@
 
     const app = document.getElementById('app');
 
-    // --- 1. СТАТИСТИКА ---
-    function getStats() {
-        const stats = localStorage.getItem('ege_stats');
-        return stats ? JSON.parse(stats) : {};
-    }
+    // --- 1. СТАТИСТИКА (FIREBASE READY) ---
 
-    function saveStats(taskId, isCorrect) {
-        const stats = getStats();
-        if (!stats[taskId]) stats[taskId] = { correct: 0, incorrect: 0 };
-        isCorrect ? stats[taskId].correct++ : stats[taskId].incorrect++;
-        localStorage.setItem('ege_stats', JSON.stringify(stats));
-    }
+// Вспомогательная функция для получения текущей даты в формате ДД.ММ.ГГГГ
+function getTodayDate() {
+    return new Date().toLocaleDateString('ru-RU');
+}
 
-    // --- 2. МОДАЛЬНОЕ ОКНО ПРОФИЛЯ ---
-    // Эта функция должна быть объявлена ДО renderMenu или просто внутри этой области видимости
-    function showProfile() {
-        const stats = getStats();
-        let statsHtml = '';
-        
-        for (const [id, task] of Object.entries(tasks)) {
-            if (id === 'blitz') continue;
-            const s = stats[id] || { correct: 0, incorrect: 0 };
-            statsHtml += `
-                <div class="stat-row" style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee;">
-                    <span style="font-weight:600;">Задание ${id}</span>
-                    <div>
-                        <span style="color:#22c55e; margin-right:10px;">✅ ${s.correct}</span>
-                        <span style="color:#ef4444;">❌ ${s.incorrect}</span>
-                    </div>
-                </div>
-            `;
+// --- УЛУЧШЕННАЯ СТАТИСТИКА (FIRESTORE) ---
+
+// --- ОБНОВЛЕННАЯ СТАТИСТИКА ДЛЯ FIRESTORE ---
+
+async function fetchStats() {
+    const defaultStats = {
+        lastActiveDate: null,
+        currentStreak: 0,
+        maxStreak: 0,
+        totalAnswered: 0,
+        totalCorrect: 0,
+        daily: {}
+    };
+
+    if (!currentUserId) return defaultStats;
+
+    try {
+        const docRef = doc(db, "users", currentUserId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data();
         }
+    } catch (e) {
+        console.error("Ошибка загрузки данных:", e);
+    }
+    return defaultStats;
+}
 
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:1000;';
-        modal.innerHTML = `
-            <div class="modal-content" style="background:white; padding:25px; border-radius:24px; width:320px; position:relative;">
-                <span class="close-modal" style="position:absolute; top:10px; right:15px; cursor:pointer; font-size:1.5rem;">&times;</span>
-                <h3 style="margin-bottom:15px; text-align:center;">Моя статистика</h3>
-                <div style="max-height: 300px; overflow-y: auto;">${statsHtml || 'Пока нет данных'}</div>
-                <button id="clearStats" style="width:100%; margin-top:20px; background:#fee2e2; color:#ef4444; border:none; padding:10px; border-radius:10px; cursor:pointer;">Сбросить прогресс</button>
+async function saveStats(taskId, isCorrect) {
+    if (!currentUserId) {
+        console.warn("Данные не сохранены: пользователь не в сети");
+        return;
+    }
+
+    // Получаем текущие данные
+    const stats = await fetchStats();
+    const today = new Date().toLocaleDateString('ru-RU');
+
+    // Логика Стрика (серии дней)
+    if (stats.lastActiveDate !== today) {
+        if (stats.lastActiveDate) {
+            const [d, m, y] = stats.lastActiveDate.split('.').map(Number);
+            const lastDate = new Date(y, m - 1, d);
+            const todayDate = new Date();
+            todayDate.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 1) stats.currentStreak++;
+            else stats.currentStreak = 1;
+        } else {
+            stats.currentStreak = 1;
+        }
+        stats.lastActiveDate = today;
+        stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+    }
+
+    // Общие счетчики
+    stats.totalAnswered++;
+    if (isCorrect) stats.totalCorrect++;
+
+    // Подневная детальная статистика
+    if (!stats.daily[today]) stats.daily[today] = {};
+    if (!stats.daily[today][taskId]) stats.daily[today][taskId] = { c: 0, i: 0 };
+    
+    isCorrect ? stats.daily[today][taskId].c++ : stats.daily[today][taskId].i++;
+
+    // Сохранение в Firebase
+    try {
+        await setDoc(doc(db, "users", currentUserId), stats);
+        console.log("Статистика успешно сохранена в облако!");
+    } catch (e) {
+        console.error("Ошибка записи в Firestore:", e);
+    }
+}
+
+    // --- 2. ВЬЮХА ПРОФИЛЯ И СТАТИСТИКИ (ВМЕСТО МОДАЛКИ) ---
+async function renderProfile() {
+    const stats = await fetchStats();
+    
+    // Считаем общий процент
+    const overallAccuracy = stats.totalAnswered > 0 
+        ? Math.round((stats.totalCorrect / stats.totalAnswered) * 100) 
+        : 0;
+
+    // Считаем статистику по каждому заданию за всё время
+    const taskStats = {};
+    Object.values(stats.daily).forEach(dayData => {
+        Object.entries(dayData).forEach(([taskId, data]) => {
+            if (!taskStats[taskId]) taskStats[taskId] = { c: 0, i: 0 };
+            taskStats[taskId].c += data.c;
+            taskStats[taskId].i += data.i;
+        });
+    });
+
+    // Генерируем HTML для прогресс-баров по заданиям
+    let tasksHtml = '';
+    Object.entries(taskStats).forEach(([taskId, data]) => {
+        const total = data.c + data.i;
+        const accuracy = Math.round((data.c / total) * 100);
+        tasksHtml += `
+            <div class="stat-task-card">
+                <div class="stat-task-header">
+                    <span style="font-weight: 600;">Задание ${taskId}</span>
+                    <span style="color: #64748b;">${accuracy}% (${data.c}/${total})</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width: ${accuracy}%; background: ${accuracy > 70 ? '#22c55e' : accuracy > 40 ? '#eab308' : '#ef4444'};"></div>
+                </div>
             </div>
         `;
-        document.body.appendChild(modal);
+    });
 
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
-        modal.querySelector('#clearStats').onclick = () => {
-            if(confirm('Удалить всю статистику?')) {
-                localStorage.removeItem('ege_stats');
-                modal.remove();
-                renderMenu();
-            }
-        };
-    }
+    if (!tasksHtml) tasksHtml = '<p style="color: #94a3b8; text-align: center;">Пока нет решенных заданий</p>';
+
+    app.innerHTML = `
+        <div class="header">
+            <button class="reset-btn" id="backToMenu" style="flex: 0 0 auto; padding: 10px 15px;">◀ Назад</button>
+            <h1 style="margin-left: 10px;">Статистика</h1>
+        </div>
+        
+        <div class="question-box" style="padding: 0; border: none; background: transparent;">
+            
+            <div class="streak-container">
+                <div class="streak-box">
+                    <div class="streak-icon">🔥</div>
+                    <div class="streak-info">
+                        <span class="streak-title">Дней подряд</span>
+                        <span class="streak-value">${stats.currentStreak}</span>
+                    </div>
+                </div>
+                <div class="streak-box" style="background: #f8fafc; border-color: #e2e8f0;">
+                    <div class="streak-icon" style="background: #e2e8f0;">🏆</div>
+                    <div class="streak-info">
+                        <span class="streak-title">Рекорд</span>
+                        <span class="streak-value" style="color: #475569;">${stats.maxStreak}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overall-stats-card">
+                <div style="font-size: 2.5rem; font-weight: 700; color: #3b82f6;">${overallAccuracy}%</div>
+                <div style="color: #64748b; font-size: 0.95rem;">Общая правильность</div>
+                <div style="margin-top: 10px; font-size: 0.9rem;">
+                    Решено верно: <b>${stats.totalCorrect}</b> из <b>${stats.totalAnswered}</b>
+                </div>
+            </div>
+
+            <h3 style="margin: 20px 0 10px; color: #1e293b;">По заданиям</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${tasksHtml}
+            </div>
+            
+            <button id="clearStats" style="width:100%; margin-top:30px; background:#fee2e2; color:#ef4444; box-shadow:none;">Очистить историю</button>
+        </div>
+    `;
+
+    document.getElementById('backToMenu').onclick = renderMenu;
+    document.getElementById('clearStats').onclick = () => {
+        if(confirm('Точно удалить всю статистику? Это действие нельзя отменить.')) {
+            localStorage.removeItem('ege_stats_v2');
+            renderProfile(); // Перерисовываем пустую
+        }
+    };
+}
 
     // --- 3. ЗАГРУЗКА ---
     async function init() {
@@ -106,7 +271,7 @@
         `;
 
         // Слушатели
-        document.getElementById('openProfile').onclick = showProfile;
+        document.getElementById('openProfile').onclick = renderProfile;
         document.querySelectorAll('.menu-option').forEach(opt => {
             opt.onclick = () => startTask(opt.dataset.taskId);
         });
@@ -195,7 +360,7 @@
             };
         });
 
-        document.getElementById('checkBtn').onclick = () => {
+        document.getElementById('checkBtn').onclick = async() => {
             const isCorrect = arraysEqual(selectedOptions, correctAnswers);
             userAnswers[currentQuestionIndex] = [...selectedOptions];
             const targetId = currentTaskId === 'blitz' ? q.originalTaskId : currentTaskId;
@@ -232,3 +397,11 @@
 
     init();
 })();
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Service Worker зарегистрирован!', reg))
+        .catch(err => console.log('Ошибка SW:', err));
+    });
+  }
