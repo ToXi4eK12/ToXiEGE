@@ -2,7 +2,7 @@
     let tasks = {};
     let currentTaskId = null;
     let currentQuestionIndex = 0;
-    let userAnswers = []; // Теперь тут будут храниться массивы выбранных ответов
+    let userAnswers = []; // Массивы выбранных ответов
     let selectedOptions = []; // Массив текущих выборов
 
     const app = document.getElementById('app');
@@ -31,7 +31,10 @@
                 <div class="options" style="max-width: 400px; margin: 0 auto;">
         `;
 
+        // Отрисовка стандартных заданий
         for (const [id, task] of Object.entries(tasks)) {
+            // Игнорируем временный объект блица, если он остался в памяти
+            if (id === 'blitz') continue; 
             menuHtml += `
                 <div class="option menu-option" data-task-id="${id}">
                     <span class="option-letter">${id}</span>
@@ -40,7 +43,14 @@
             `;
         }
 
-        menuHtml += `</div></div>`;
+        // Отрисовка кнопки "Задание Блиц" (в стиле Duolingo)
+        menuHtml += `
+                <div class="option menu-option" data-task-id="blitz" style="background: #fef08a; border-color: #facc15; margin-top: 15px;">
+                    <span class="option-letter" style="background: #ca8a04; color: white; border: none;">⚡</span>
+                    <span style="font-weight: bold; color: #854d0e;">Задание Блиц (5 случайных)</span>
+                </div>
+            </div></div>
+        `;
         app.innerHTML = menuHtml;
 
         document.querySelectorAll('.menu-option').forEach(opt => {
@@ -51,19 +61,43 @@
     function startTask(taskId) {
         currentTaskId = taskId;
         currentQuestionIndex = 0;
-        // Перемешиваем вопросы
-        tasks[taskId].questions = tasks[taskId].questions.sort(() => Math.random() - 0.5);
+        
+        // Логика режима БЛИЦ
+        if (taskId === 'blitz') {
+            let allQuestions = [];
+            // Собираем вопросы из всех заданий
+            for (const [id, task] of Object.entries(tasks)) {
+                if (id !== 'blitz') {
+                    task.questions.forEach(q => {
+                        // Запоминаем, из какого задания взят вопрос, чтобы выводить подсказку
+                        allQuestions.push({ ...q, originalTaskName: `Задание ${id}: ${task.name}` });
+                    });
+                }
+            }
+            // Перемешиваем всю базу и берем только 5 штук
+            allQuestions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 5);
+            
+            // Создаем виртуальное задание
+            tasks['blitz'] = {
+                name: "Блиц-микс",
+                questions: allQuestions
+            };
+        } else {
+            // Обычное задание: просто перемешиваем его вопросы
+            tasks[taskId].questions = tasks[taskId].questions.sort(() => Math.random() - 0.5);
+        }
+
         userAnswers = new Array(tasks[taskId].questions.length).fill(null);
         selectedOptions = [];
         renderQuestion();
     }
 
-    // Вспомогательная функция, чтобы всегда работать с массивом правильных ответов
+    // Вспомогательная функция (ответы в массив)
     function getCorrectAnswersArray(answerData) {
         return Array.isArray(answerData) ? answerData : [answerData];
     }
 
-    // Проверка, совпадают ли два массива
+    // Сравнение массивов
     function arraysEqual(a, b) {
         if (a.length !== b.length) return false;
         const sortedA = [...a].sort();
@@ -77,7 +111,6 @@
         const isAnswered = userAnswers[currentQuestionIndex] !== null;
         const correctAnswers = getCorrectAnswersArray(q.answer);
         
-        // Если уже ответили, берем ответы пользователя, иначе текущие выбранные
         const currentSelections = isAnswered ? userAnswers[currentQuestionIndex] : selectedOptions;
 
         const optionsHtml = q.options.map((opt, i) => {
@@ -87,15 +120,11 @@
                 const isSelectedByUser = currentSelections.includes(i);
                 const isTrulyCorrect = correctAnswers.includes(i);
 
-                if (isSelectedByUser && isTrulyCorrect) {
-                    cls += ' correct'; // Выбрал и угадал
-                } else if (isSelectedByUser && !isTrulyCorrect) {
-                    cls += ' incorrect'; // Выбрал, но это ошибка
-                } else if (!isSelectedByUser && isTrulyCorrect) {
-                    cls += ' missed'; // Не выбрал, а надо было (покажем пунктиром)
-                }
+                if (isSelectedByUser && isTrulyCorrect) cls += ' correct';
+                else if (isSelectedByUser && !isTrulyCorrect) cls += ' incorrect';
+                else if (!isSelectedByUser && isTrulyCorrect) cls += ' missed';
             } else if (currentSelections.includes(i)) {
-                cls += ' selected'; // Просто выделение до проверки
+                cls += ' selected';
             }
 
             return `
@@ -106,7 +135,6 @@
             `;
         }).join('');
 
-        // Проверяем, полностью ли правильный ответ
         const isCompletelyCorrect = isAnswered && arraysEqual(currentSelections, correctAnswers);
 
         const feedbackHtml = isAnswered ? `
@@ -115,17 +143,21 @@
             </div>
         ` : '';
 
-        // Подсчет текущего прогресса (сколько полностью правильных)
         const correctCount = userAnswers.filter((ans, idx) => {
             if (ans === null) return false;
             const corr = getCorrectAnswersArray(task.questions[idx].answer);
             return arraysEqual(ans, corr);
         }).length;
 
+        // Если это блиц, показываем из какого задания этот вопрос (например: "Задание 4: Ударения")
+        const badgeText = currentTaskId === 'blitz' ? q.originalTaskName : task.name;
+        // Особый стиль плашки для блица
+        const badgeStyle = currentTaskId === 'blitz' ? 'style="background: #fef08a; color: #854d0e;"' : '';
+
         app.innerHTML = `
             <div class="header">
-                <h1>📚 Задание ${currentTaskId}</h1>
-                <span class="task-badge">${task.name}</span>
+                <h1>${currentTaskId === 'blitz' ? '⚡ Блиц' : '📚 Задание ' + currentTaskId}</h1>
+                <span class="task-badge" ${badgeStyle}>${badgeText}</span>
             </div>
             <div class="progress">
                 <span>Вопрос ${currentQuestionIndex + 1} / ${task.questions.length}</span>
@@ -147,7 +179,6 @@
             opt.addEventListener('click', () => {
                 if (!isAnswered) {
                     const idx = parseInt(opt.dataset.idx);
-                    // Тогл (включение/выключение) выбора
                     if (selectedOptions.includes(idx)) {
                         selectedOptions = selectedOptions.filter(item => item !== idx);
                     } else {
@@ -159,14 +190,14 @@
         });
 
         document.getElementById('checkBtn').addEventListener('click', () => {
-            userAnswers[currentQuestionIndex] = [...selectedOptions]; // Сохраняем массив
+            userAnswers[currentQuestionIndex] = [...selectedOptions];
             renderQuestion();
         });
 
         document.getElementById('nextBtn').addEventListener('click', () => {
             if (currentQuestionIndex < task.questions.length - 1) {
                 currentQuestionIndex++;
-                selectedOptions = []; // Сбрасываем выбор для следующего вопроса
+                selectedOptions = [];
                 renderQuestion();
             } else {
                 renderResults();
@@ -182,11 +213,13 @@
             return arraysEqual(ans, corr);
         }).length;
 
+        const resultTitle = currentTaskId === 'blitz' ? '⚡ Блиц завершён!' : 'Результат';
+
         app.innerHTML = `
             <div class="result-screen">
-                <h2>Результат</h2>
+                <h2>${resultTitle}</h2>
                 <div class="result-score">${correctCount} / ${userAnswers.length}</div>
-                <button class="restart-btn" id="retry">Заново</button>
+                <button class="restart-btn" id="retry">Ещё раз</button>
                 <button class="reset-btn" id="toMenu" style="width:100%; margin-top:10px;">В меню</button>
             </div>
         `;
