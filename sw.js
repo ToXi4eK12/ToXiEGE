@@ -1,11 +1,11 @@
 const CACHE_NAME = 'ege-app-v1';
 // Список файлов для кэширования
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/script.js',
-  '/tasks.json'
+  './',
+  './index.html',
+  './style.css',
+  './script.js',
+  './tasks.json'
 ];
 
 // Установка: кешируем ресурсы

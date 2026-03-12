@@ -400,8 +400,9 @@ async function renderProfile() {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
+      // Меняем '/sw.js' на './sw.js'
+      navigator.serviceWorker.register('./sw.js')
         .then(reg => console.log('Service Worker зарегистрирован!', reg))
         .catch(err => console.log('Ошибка SW:', err));
     });
-  }
+}
